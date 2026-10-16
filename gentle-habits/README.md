@@ -1,6 +1,6 @@
 # Gentle Habits
 
-A calm, low-pressure habit tracker. No streaks, no guilt, no pressure to be perfect.
+A calm, low-pressure habit tracker. 
 
 ## Features
 - **Today view**: progress ring, habits grouped by time of day, big checkboxes, "Not today" option
