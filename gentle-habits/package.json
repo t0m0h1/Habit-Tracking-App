@@ -1,0 +1,11 @@
+{
+  "name": "gentle-habits",
+  "version": "1.0.0",
+  "description": "A calm, low-pressure habit tracker with rest days, daily and weekly views.",
+  "private": true,
+  "scripts": {
+    "start": "npx --yes serve -l 5500 .",
+    "start:python": "python -m http.server 5500"
+  },
+  "license": "MIT"
+}
