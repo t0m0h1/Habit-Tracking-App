@@ -57,6 +57,17 @@ function toast(m){const t=$('#toast');t.textContent=m;clearTimeout(tt);tt=setTim
 function apply(){const r=document.documentElement;const t=S.set.theme;if(t==='auto')r.removeAttribute('data-theme');else r.setAttribute('data-theme',t);r.dataset.size=S.set.size;r.dataset.calm=S.set.calm?'on':'off'}
 function dayInfo(d){const k=key(d),act=S.habits.filter(h=>sched(h,d)&&st(h,k)!==2);return{k,act,done:act.filter(h=>st(h,k)===1).length}}
 
+function nameOf(id){const x=S.habits.find(h=>h.id===id);return x?esc(x.name):''}
+function follows(id,target){let n=0,h=S.habits.find(x=>x.id===id);while(h&&h.after&&n++<50){if(h.after===target)return true;h=S.habits.find(x=>x.id===h.after)}return false}
+function chains(list){
+ const ids=new Set(list.map(h=>h.id)),kids={},out=[],seen=new Set();
+ const has=h=>h.after&&h.after!==h.id&&ids.has(h.after);
+ list.forEach(h=>{if(has(h))(kids[h.after]=kids[h.after]||[]).push(h)});
+ const walk=(h,depth,prev,grp)=>{if(seen.has(h.id))return;seen.add(h.id);out.push({h,depth,prev,grp});(kids[h.id]||[]).forEach(c=>walk(c,depth+1,h,grp))};
+ list.filter(h=>!has(h)).forEach(h=>walk(h,0,null,h.time));
+ list.forEach(h=>walk(h,0,null,h.time));
+ return out}
+
 function todayView(){
  const t=new Date(),{k,act,done}=dayInfo(t),rest=S.rest[k],tot=act.length;
  const hr=t.getHours(),greet=hr<12?'Good morning':hr<18?'Good afternoon':'Good evening';
@@ -68,9 +79,10 @@ function todayView(){
   const hs=act.filter(h=>h.remind&&h.time===w&&st(h,k)!==1);
   if(hs.length)nudge=`<div class="note"><p>A gentle nudge: ${hs.map(h=>esc(h.name)).join(', ')} whenever you’re ready.</p><button class="btn sm" data-act="nudgeoff" data-fid="nd">Dismiss</button></div>`}
  let list='';
- for(const [tm,ic] of TIMES){const hs=S.habits.filter(h=>h.time===tm&&sched(h,t));if(!hs.length)continue;
-  list+=`<h2><span aria-hidden="true">${svg(ic,20)}</span> ${tm}</h2><ul>`+hs.map(h=>{const s=st(h,k);
-  return `<li class="row ${s===1?'done':''} ${s===2?'skip':''}" style="--c:${h.color}"><label class="chk"><input type="checkbox" data-act="tick" data-id="${h.id}" data-fid="t${h.id}" ${s===1?'checked':''} ${s===2?'disabled':''}><span class="box" aria-hidden="true"></span><span class="ico" aria-hidden="true">${svg(h.icon,22)}</span><span class="nm">${esc(h.name)}${s===2?'<small>Skipped. That’s okay.</small>':''}</span></label><button class="ghost" data-act="skip" data-id="${h.id}" data-fid="s${h.id}">${s===2?'Undo':'Not today'}</button></li>`}).join('')+'</ul>'}
+ const chain=chains(S.habits.filter(h=>sched(h,t)));
+ for(const [tm,ic] of TIMES){const hs=chain.filter(x=>x.grp===tm);if(!hs.length)continue;
+  list+=`<h2><span aria-hidden="true">${svg(ic,20)}</span> ${tm}</h2><ul>`+hs.map(({h,depth,prev})=>{const s=st(h,k);
+  return `<li class="row ${depth?'linked':''} ${s===1?'done':''} ${s===2?'skip':''}" style="--c:${h.color};margin-left:${Math.min(depth,3)*26}px"><label class="chk"><input type="checkbox" data-act="tick" data-id="${h.id}" data-fid="t${h.id}" ${s===1?'checked':''} ${s===2?'disabled':''}><span class="box" aria-hidden="true"></span><span class="ico" aria-hidden="true">${svg(h.icon,22)}</span><span class="nm">${esc(h.name)}${prev?`<small>After: ${esc(prev.name)}</small>`:''}${s===2?'<small>Skipped. That’s okay.</small>':''}</span></label><button class="ghost" data-act="skip" data-id="${h.id}" data-fid="s${h.id}">${s===2?'Undo':'Not today'}</button></li>`}).join('')+'</ul>'}
  if(!list)list='<p class="card sub" style="margin-top:20px">No habits planned today. Add one in My habits whenever you like.</p>';
  return `<h1>${greet}</h1><p class="sub">${t.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'})}</p>
  <section class="card hero" aria-label="Today’s progress"><div class="ring" role="img" aria-label="${rest?'Resting today':done+' of '+tot+' habits done'}"><svg viewBox="0 0 100 100" aria-hidden="true"><circle class="t" cx="50" cy="50" r="42"/><circle class="p" cx="50" cy="50" r="42" stroke-dasharray="${C}" stroke-dashoffset="${C*(1-f)}"/></svg><b aria-hidden="true">${rest?svg('moon',34):done+'/'+tot}</b></div><div><p><b>${msg}</b></p><button class="ghost" style="padding-left:0" data-act="rest" data-fid="rest">${rest?'Undo rest day':'Take a rest day'}</button></div></section>
@@ -96,7 +108,7 @@ function habitsView(){
  const s=S.set;
  return `<h1>My habits</h1><p class="sub">Make them yours. Change them any time.</p>
  <div style="margin:14px 0"><button class="btn pri" data-act="add" data-fid="add">Add a habit</button></div>
- <ul>${S.habits.map(h=>`<li class="item" style="--c:${h.color}"><span class="ico" aria-hidden="true">${svg(h.icon,22)}</span><span class="nm">${esc(h.name)}<small>${h.time}, ${h.days.length===7?'every day':h.days.map(i=>DS[i]).join(' ')}${h.remind?', gentle reminder':''}</small></span><button class="btn sm" data-act="edit" data-id="${h.id}" data-fid="e${h.id}" aria-label="Edit ${esc(h.name)}">Edit</button></li>`).join('')||'<li class="card sub">Nothing here yet. Add your first habit, small is perfect.</li>'}</ul>
+ <ul>${S.habits.map(h=>`<li class="item" style="--c:${h.color}"><span class="ico" aria-hidden="true">${svg(h.icon,22)}</span><span class="nm">${esc(h.name)}<small>${h.time}, ${h.days.length===7?'every day':h.days.map(i=>DS[i]).join(' ')}${h.remind?', gentle reminder':''}${nameOf(h.after)?', after '+nameOf(h.after):''}</small></span><button class="btn sm" data-act="edit" data-id="${h.id}" data-fid="e${h.id}" aria-label="Edit ${esc(h.name)}">Edit</button></li>`).join('')||'<li class="card sub">Nothing here yet. Add your first habit, small is perfect.</li>'}</ul>
  <h2>Comfort settings</h2><div class="card">
  <label class="f" for="th" style="margin-top:0">Colour theme</label><select id="th" class="in" data-act="set" data-s="theme"><option value="auto" ${s.theme==='auto'?'selected':''}>Match my device</option><option value="light" ${s.theme==='light'?'selected':''}>Soft light</option><option value="dark" ${s.theme==='dark'?'selected':''}>Soft dark</option></select>
  <label class="f" for="sz">Text size</label><select id="sz" class="in" data-act="set" data-s="size"><option value="normal" ${s.size==='normal'?'selected':''}>Comfortable</option><option value="large" ${s.size==='large'?'selected':''}>Larger</option></select>
@@ -113,6 +125,7 @@ function editView(){
  <fieldset style="border:0;padding:0;margin:0"><legend class="f">Pick an icon</legend><div class="seg">${ICONS.map(i=>`<label><input type="radio" name="icon" value="${i}" ${e.icon===i?'checked':''} aria-label="${i}"><span aria-hidden="true">${svg(i,24)}</span></label>`).join('')}</div></fieldset>
  <fieldset style="border:0;padding:0;margin:0"><legend class="f">Pick a colour</legend><div class="seg">${COLS.map(([n,c])=>`<label class="sw" style="--c:${c}"><input type="radio" name="color" value="${c}" ${e.color===c?'checked':''} aria-label="${n}"><span aria-hidden="true"></span></label>`).join('')}</div></fieldset>
  <fieldset style="border:0;padding:0;margin:0"><legend class="f">Time of day</legend><div class="seg">${TIMES.map(([t,i])=>`<label><input type="radio" name="time" value="${t}" ${e.time===t?'checked':''}><span>${svg(i,18)}${t}</span></label>`).join('')}</div></fieldset>
+ <label class="f" for="af">Do this right after (optional)</label><select id="af" class="in" name="after"><option value="">Nothing, it stands on its own</option>${S.habits.filter(h=>h.id!==e.id&&!follows(h.id,e.id)).map(h=>`<option value="${h.id}" ${e.after===h.id?'selected':''}>${esc(h.name)}</option>`).join('')}</select>
  <fieldset style="border:0;padding:0;margin:0"><legend class="f">Which days?</legend><div class="seg">${DS.map((d,i)=>`<label><input type="checkbox" name="day" value="${i}" ${e.days.includes(i)?'checked':''}><span>${d}</span></label>`).join('')}</div></fieldset>
  <label class="tg" style="margin-top:14px"><input type="checkbox" name="remind" ${e.remind?'checked':''}> Include in my gentle reminder</label>
  <div class="acts"><button class="btn pri" type="submit">Save habit</button><button class="btn" type="button" data-act="cancel">Cancel</button>${e.id?`<button class="btn" type="button" data-act="del">${confirmDel?'Tap again to delete for good':'Delete habit'}</button>`:''}</div></form>`}
@@ -139,7 +152,7 @@ document.addEventListener('click',e=>{
  else if(a==='add'){ed={id:null,name:'',icon:'sprout',color:COLS[0][1],time:'Morning',days:ALL7.slice(),remind:false};render();$('#nm').focus()}
  else if(a==='edit'){ed=JSON.parse(JSON.stringify(h));confirmDel=false;render();$('#nm').focus();window.scrollTo(0,0)}
  else if(a==='cancel'){ed=null;confirmDel=false;render()}
- else if(a==='del'){if(!confirmDel){confirmDel=true;render();document.querySelector('[data-act="del"]').focus()}else{S.habits=S.habits.filter(x=>x.id!==ed.id);save();ed=null;confirmDel=false;render();toast('Habit removed.')}}
+ else if(a==='del'){if(!confirmDel){confirmDel=true;render();document.querySelector('[data-act="del"]').focus()}else{S.habits=S.habits.filter(x=>x.id!==ed.id);S.habits.forEach(x=>{if(x.after===ed.id)x.after=''});save();ed=null;confirmDel=false;render();toast('Habit removed.')}}
 });
 document.addEventListener('change',e=>{
  const i=e.target;if(i.dataset.act==='tick'){const h=S.habits.find(x=>x.id===i.dataset.id),k=key(new Date());setSt(h,k,i.checked?1:0);
@@ -150,7 +163,7 @@ document.addEventListener('change',e=>{
 document.addEventListener('submit',e=>{
  e.preventDefault();const f=new FormData(e.target),name=(f.get('name')||'').trim();
  ed.name=name;ed.icon=f.get('icon')||ed.icon;ed.color=f.get('color')||ed.color;ed.time=f.get('time')||'Anytime';
- ed.days=f.getAll('day').map(Number);if(!ed.days.length)ed.days=ALL7.slice();ed.remind=!!f.get('remind');
+ ed.days=f.getAll('day').map(Number);if(!ed.days.length)ed.days=ALL7.slice();ed.remind=!!f.get('remind');ed.after=f.get('after')||'';
  if(!name){ed.err=true;render();$('#nm').focus();return}
  delete ed.err;
  if(ed.id){S.habits=S.habits.map(h=>h.id===ed.id?ed:h)}else{ed.id='h'+Date.now();S.habits.push(ed)}
